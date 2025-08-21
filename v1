@@ -1,0 +1,776 @@
+import React, { useState, useEffect, useRef } from 'react';
+
+// --- MOCK DATA ---
+const newHireData = {
+  name: 'Alex',
+  firstDay: {
+    overview: "Welcome to your first day at Treasury Prime! We're so excited to have you on the team. Today is all about getting you set up, introduced to your team, and familiarized with our culture. Don't hesitate to ask questions!",
+    schedule: [
+      { time: '9:00 AM', event: 'Welcome & Team Introduction', link: 'https://calendar.google.com/calendar/event?action=TEMPLATE&tmeid=NzhzMzFhNGw3Y3JocGRnYTNjYjJwNnNxMTggbWlrZXNoYXdAdHJlYXN1cnlwcmltZS5jb20&tmsrc=mikeshaw%40treasuryprime.com' },
+      { time: '10:00 AM', event: 'IT Setup Session with IT', link: 'https://calendar.google.com/calendar/event?action=VIEW&eid=...' },
+      { time: '11:00 AM', event: 'HR Onboarding with People Ops', link: 'https://calendar.google.com/calendar/event?action=VIEW&eid=...' },
+      { time: '12:30 PM', event: 'Team Lunch (Virtual)', link: 'https://calendar.google.com/calendar/event?action=VIEW&eid=...' },
+      { time: '2:00 PM', event: 'Introduction to Treasury Prime Products', link: 'https://calendar.google.com/calendar/event?action=VIEW&eid=...' },
+      { time: '4:00 PM', event: 'Manager Check-in', link: 'https://calendar.google.com/calendar/event?action=VIEW&eid=...' },
+    ]
+  },
+  team: [
+    { name: 'Chris Dean', role: 'CEO', linkedin: 'https://www.linkedin.com/in/ctdean/', email: 'chris@treasuryprime.com' },
+    { name: 'Brandi McVay', role: 'Chief People Officer', linkedin: 'https://www.linkedin.com/in/brandi-mcvay-hoogendam-shrm-scp-05500427/', email: 'brandi@treasuryprime.com' },
+    { name: 'Victoria Nicholson', role: 'Executive Assistant', linkedin: 'https://www.linkedin.com/in/victoria-nicholson-2842555a/', email: 'victoria@treasuryprime.com' },
+    { name: 'Mike Shaw', role: 'Director of People Operations', linkedin: 'https://www.linkedin.com/in/mikeshaw10/', email: 'mikeshaw@treasuryprime.com' }
+  ]
+};
+
+const itSetupSteps = [
+    { text: "Login to your new Mac and change your Mac password.", videoUrl: "https://www.youtube.com/embed/xPL8bUW0fso" }, // Updated YouTube embed URL
+    { text: "Setup your Okta Account using your Treasury Prime email and the temporary password sent to you." },
+    { text: "Change your Google Password and add MFA (Multi-Factor Authentication) to your Google Account." },
+    { text: "Add your fingerprint to TouchID (optional, but recommended)." },
+    { text: "Login to Vanta (https://app.vanta.com) and accept the security policies." },
+    { text: "Change your 1Password Master Password on 1Password.com and set up 2FA." },
+    { text: "Find your 'emergency recovery kit' PDF in your desktop's 'Important Info' folder. Print it or save the key somewhere safe." },
+    { text: "Setup Slack by accepting the invitations in your Gmail inbox." },
+    { text: "Change your Microsoft O365 Password at https://www.office.com/." },
+    { text: "Setup your AppleID using the welcome email and sign in via System Preferences." },
+    { text: "Start Google Drive by searching for it with Spotlight (magnifying glass icon)." },
+    { text: "In Slack, look for any notices from Kolide (this may take a day or two to appear)." }
+];
+
+const cultureAndValues = [
+    { title: "The team, the team, the team", description: "Our team is our strength. Everything the company is and does is a reflection of its people. The performance of the company is the performance of the team." },
+    { title: "Openness", description: "We must be open to new ideas and experimentation, open in our communication, and open to difference and disagreement." },
+    { title: "Stewardship", description: "Our software operates the most core financial functions of banks and corporations. We can access our customers' money and in turn their customers' money. We must hold inviolable the responsibility to be good stewards of our customers and their funds. The existence of our business depends entirely on maintaining that trust." },
+    { title: "Innovate, iterate, adapt", description: "We want to make the economy better by making banking better. Achieving that goal requires constant innovation and experimentation. When we make a decision, we act on it, and then quickly observe the results so we can iterate and adapt." },
+    { title: "Customer centricity", description: "At the heart of all our actions, whether it's designing APIs or nurturing partnerships, we consider our customers. Their goals and aspirations are the foundation of our achievements. By truly comprehending their needs, struggles, and ambitions, we utilize our expertise to amplify their success. We remove friction and make the complex simple so our customers can focus on their business." }
+];
+
+const thirtySixtyNinetyDayPlan = {
+  thirtyDays: "In the first 30 days, the focus will be on onboarding and learning, where the new hire will integrate into the company culture, understand the company's mission, and build relationships with key team members. They will complete all necessary training programs, familiarize themselves with the role's tools and resources, and actively participate in team meetings to gain insight into the company’s products and services. By the end of this period, they will have established their personal work systems and received feedback on their initial performance.",
+  sixtyDays: "In the next 30 days (days 31-60), the new hire will begin taking ownership of projects, working more closely with cross-functional teams, and contributing to team-driven outcomes. They will aim to meet project deadlines, identify areas for improvement, and implement solutions that align with team and company goals. The focus will shift from learning to active contribution, with a specific goal of successfully managing or supporting at least one major initiative.",
+  ninetyDays: "In the final 30 days (days 61-90), the new hire will fully take ownership of a key project or initiative, demonstrating leadership and strategic input in team discussions and project outcomes. They will focus on driving results by meeting or exceeding predefined metrics and delivering impactful project reports. By the end of the 90 days, the new hire will have demonstrated their ability to meet performance expectations, contribute to the company’s strategic objectives, and establish themselves as a reliable and proactive team member."
+};
+
+// --- GEMINI API CALL LOGIC ---
+const callGeminiAPI = async (prompt, retries = 3, delay = 1000) => {
+    const apiKey = ""; // This will be provided by the environment at runtime.
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+    const payload = {
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+    };
+
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.candidates && result.candidates.length > 0 &&
+                result.candidates[0].content && result.candidates[0].content.parts &&
+                result.candidates[0].content.parts.length > 0) {
+                return result.candidates[0].content.parts[0].text;
+            } else {
+                return "I'm sorry, I couldn't generate a response. Please try again.";
+            }
+        } catch (error) {
+            console.error(`API call attempt ${i + 1} failed:`, error);
+            if (i < retries - 1) {
+                await new Promise(res => setTimeout(res, delay));
+                delay *= 2; // Exponential backoff
+            } else {
+                return "I'm having trouble connecting right now. Please try again in a moment.";
+            }
+        }
+    }
+};
+
+// --- GEMINI TTS API CALL LOGIC & HELPERS ---
+const callGeminiTTSAPI = async (textToSpeak, retries = 3, delay = 1000) => {
+    const apiKey = ""; // This will be provided by the environment at runtime.
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+    
+    const payload = {
+        contents: [{ parts: [{ text: textToSpeak }] }],
+        generationConfig: {
+            responseModalities: ["AUDIO"],
+            speechConfig: {
+                voiceConfig: {
+                    prebuiltVoiceConfig: { voiceName: "Callirrhoe" } // An 'easy-going' female voice.
+                }
+            }
+        },
+        model: "gemini-2.5-flash-preview-tts"
+    };
+
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+            const result = await response.json();
+            const part = result?.candidates?.[0]?.content?.parts?.[0];
+            const audioData = part?.inlineData?.data;
+            const mimeType = part?.inlineData?.mimeType;
+
+            if (audioData && mimeType && mimeType.startsWith("audio/")) {
+                return { audioData, mimeType };
+            } else {
+                throw new Error("Invalid audio data in response.");
+            }
+        } catch (error) {
+            console.error(`TTS API call attempt ${i + 1} failed:`, error);
+            if (i < retries - 1) {
+                await new Promise(res => setTimeout(res, delay));
+                delay *= 2;
+            } else {
+                return null;
+            }
+        }
+    }
+};
+
+// Helper to convert Base64 to ArrayBuffer
+const base64ToArrayBuffer = (base64) => {
+    const binaryString = window.atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
+};
+
+// Helper to convert raw PCM data to a playable WAV file
+const pcmToWav = (pcmData, sampleRate) => {
+    const numChannels = 1;
+    const bitsPerSample = 16;
+    const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+    const blockAlign = numChannels * (bitsPerSample / 8);
+    const dataSize = pcmData.length * (bitsPerSample / 8);
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+
+    // RIFF header
+    view.setUint32(0, 0x52494646, false); // "RIFF"
+    view.setUint32(4, 36 + dataSize, true);
+    view.setUint32(8, 0x57415645, false); // "WAVE"
+    // "fmt " sub-chunk
+    view.setUint32(12, 0x666d7420, false); // "fmt "
+    view.setUint32(16, 16, true); // Sub-chunk size
+    view.setUint16(20, 1, true); // Audio format (1 for PCM)
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitsPerSample, true);
+    // "data" sub-chunk
+    view.setUint32(36, 0x64617461, false); // "data"
+    view.setUint32(40, dataSize, true);
+
+    // Write PCM data
+    const pcm16 = new Int16Array(pcmData.buffer);
+    for (let i = 0; i < pcm16.length; i++) {
+        view.setInt16(44 + i * 2, pcm16[i], true);
+    }
+
+    return new Blob([view], { type: 'audio/wav' });
+};
+
+
+// --- COMPONENTS ---
+
+const Sidebar = ({ activePage, setActivePage, isMenuOpen, setIsMenuOpen }) => {
+  const menuItems = ["First Day", "Meet the Team", "IT Setup", "Culture and Values", "Employee Benefits", "Important Resources", "Scavenger Hunt", "30/60/90 Day Plan"];
+  
+  const handleItemClick = (item) => {
+      setActivePage(item);
+      setIsMenuOpen(false); // Close menu on item click for mobile
+  };
+
+  return (
+    <>
+      {isMenuOpen && <div className="md:hidden fixed inset-0 bg-black opacity-50 z-30" onClick={() => setIsMenuOpen(false)}></div>}
+      <div className={`fixed inset-y-0 left-0 w-64 md:w-1/4 bg-[#ADCCC5] text-[#304544] p-5 flex-shrink-0 flex flex-col z-40 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex justify-between items-center mb-10">
+          <h1 className="text-2xl font-bold">Treasury Prime</h1>
+          <button onClick={() => setIsMenuOpen(false)} className="md:hidden text-[#304544]">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <nav>
+          <ul>
+            {menuItems.map(item => (
+              <li key={item} 
+                  className={`mb-2 p-2 rounded-md cursor-pointer transition-colors ${activePage === item ? 'bg-[#9abeb8]' : 'hover:bg-[#9abeb8]'}`}
+                  onClick={() => handleItemClick(item)}>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </div>
+    </>
+  );
+};
+
+const Header = ({ onMenuClick }) => (
+    <div className="md:hidden bg-[#F0E8E2] p-4 flex items-center sticky top-0 z-20">
+        <button onClick={onMenuClick} className="text-[#304544] mr-4">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+        <h1 className="text-xl font-bold text-[#304544]">Treasury Prime</h1>
+    </div>
+);
+
+const WelcomePage = () => (
+  <div className="p-6 md:p-10">
+    <h1 className="text-3xl md:text-4xl font-bold text-[#304544]">Welcome to Treasury Prime!</h1>
+    <p className="mt-4 text-lg text-gray-700">We are thrilled to have you join Treasury Prime. My name is Murphy and I am your onboarding buddy designed to help you navigate your first few days and weeks. Use the menu on the left to explore or ask me a question in the chat below!</p>
+  </div>
+);
+
+const FirstDayPage = ({ data }) => (
+  <div className="p-6 md:p-10">
+    <h1 className="text-3xl font-bold mb-6 text-[#304544]">Your First Day</h1>
+    <div className="bg-white p-6 rounded-lg shadow-md">
+      <h2 className="text-2xl font-semibold mb-4 text-[#304544]">Overview</h2>
+      <p className="text-gray-700 mb-8">{data.overview}</p>
+      <h2 className="text-2xl font-semibold mb-4 text-[#304544]">Schedule</h2>
+      <ul className="space-y-4">
+        {data.schedule.map(item => (
+          <li key={item.time} className="flex items-center border-b pb-4">
+            <span className="w-28 font-semibold text-gray-800">{item.time}</span>
+            <a href={item.link} target="_blank" rel="noopener noreferrer" className="flex-1 text-[#6D988F] hover:underline">{item.event}</a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
+);
+
+const MeetTheTeamPage = ({ team }) => {
+    const [isLoading, setIsLoading] = useState(false);
+    const [showModal, setShowModal] = useState(false);
+    const [modalContent, setModalContent] = useState('');
+
+    const handleDraftIntro = async (name, role) => {
+        setIsLoading(true);
+        setShowModal(true);
+        setModalContent('Generating intro message...');
+        const prompt = `You are an AI assistant for a new hire at a tech company called Treasury Prime. Draft a short, friendly, and professional introductory Slack message from the new hire to their new colleague, ${name}, who is a ${role}. The new hire's name is Alex. Keep it concise and welcoming.`;
+        const response = await callGeminiAPI(prompt);
+        setModalContent(response);
+        setIsLoading(false);
+    };
+
+    const copyToClipboard = () => {
+        const textArea = document.createElement("textarea");
+        textArea.value = modalContent;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            alert('Message copied to clipboard!');
+        } catch (err) {
+            alert('Failed to copy text.');
+        }
+        document.body.removeChild(textArea);
+    };
+
+    const handleSendToSlack = () => {
+        // This is a dummy link for future integration.
+        window.open('https://app.slack.com/', '_blank');
+    };
+    
+    const createCalendarLink = (member) => {
+        const title = encodeURIComponent(`Intro Chat with ${member.name}`);
+        const attendee = encodeURIComponent(member.email);
+        return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&add=${attendee}`;
+    };
+
+    return (
+        <div className="p-6 md:p-10">
+            <h1 className="text-3xl font-bold mb-6 text-[#304544] text-center">Meet Your Team</h1>
+            <div className="text-center mb-6">
+                <a href="https://treasuryprime.bamboohr.com/employees/orgchart.php?pin" target="_blank" rel="noopener noreferrer" className="text-[#6D988F] hover:underline">View Company Org Chart</a>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {team.map(member => (
+                    <div key={member.name} className="bg-white p-6 rounded-lg shadow-md text-center flex flex-col justify-between transform hover:scale-105 transition-transform duration-300">
+                        <div>
+                            <a href={member.linkedin} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                                <h2 className="text-xl font-semibold text-[#304544]">{member.name}</h2>
+                            </a>
+                            <p className="text-gray-600 my-2">{member.role}</p>
+                            <a href={createCalendarLink(member)} target="_blank" rel="noopener noreferrer" className="text-[#6D988F] hover:underline text-sm">Schedule Meeting</a>
+                        </div>
+                        <button onClick={() => handleDraftIntro(member.name, member.role)} className="mt-4 bg-[#ADCCC5] text-[#304544] py-2 px-4 rounded-md hover:bg-[#9abeb8] transition-colors text-sm font-semibold">
+                            Draft Intro Message ✨
+                        </button>
+                    </div>
+                ))}
+            </div>
+            {showModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md flex flex-col">
+                        <h2 className="text-xl font-bold mb-4 text-[#304544]">Generated Intro Message</h2>
+                        <textarea 
+                            className="bg-gray-100 p-4 rounded-md mb-4 whitespace-pre-wrap font-mono text-sm max-h-64 h-48 overflow-y-auto w-full"
+                            value={isLoading ? 'Thinking...' : modalContent}
+                            onChange={(e) => setModalContent(e.target.value)}
+                        />
+                        <div className="flex justify-end space-x-2 mt-auto">
+                            <button onClick={copyToClipboard} disabled={isLoading} className="bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600 disabled:bg-gray-400">Copy</button>
+                            <button onClick={handleSendToSlack} disabled={isLoading} className="bg-[#6D988F] text-white py-2 px-4 rounded-md hover:bg-[#5a7f7a] disabled:bg-gray-400">Send in Slack</button>
+                            <button onClick={() => setShowModal(false)} className="bg-gray-300 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-400">Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const ITSetupPage = ({ steps }) => (
+  <div className="p-6 md:p-10">
+    <h1 className="text-3xl font-bold mb-6 text-[#304544]">IT Setup Guide</h1>
+    <div className="bg-white p-6 rounded-lg shadow-md">
+        <a href="https://docs.google.com/document/d/1bZnCE1LW_7dmC2s6e25bHL9hraSLMGqgpXBgbRFC1ek/edit?usp=sharing" target="_blank" rel="noopener noreferrer" className="text-[#6D988F] hover:underline">
+            <h2 className="text-2xl font-semibold mb-4 text-[#304544]">Mac Setup Instructions</h2>
+        </a>
+        <ol className="list-decimal list-inside space-y-4 text-gray-700">
+            {steps.map((step, index) => (
+                <li key={index}>
+                    {step.text}
+                    {step.videoUrl && (
+                        <div className="mt-2">
+                             <iframe className="w-full max-w-md aspect-video rounded-lg" src={step.videoUrl} title="YouTube video player" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
+                            <p className="text-sm text-gray-500 mt-1">Video walkthrough for this step.</p>
+                        </div>
+                    )}
+                </li>
+            ))}
+        </ol>
+    </div>
+  </div>
+);
+
+const CultureValuesPage = ({ values }) => (
+    <div className="p-6 md:p-10">
+        <a href="https://www.notion.so/treasuryprime/Company-Values-8289690da04c474a9a65e65ac4cc8373" target="_blank" rel="noopener noreferrer">
+            <h1 className="text-3xl font-bold mb-6 text-[#304544] hover:text-[#6D988F] hover:underline inline-block">Company Values</h1>
+        </a>
+        <div className="space-y-6 mt-4">
+            {values.map(value => (
+                <div key={value.title} className="bg-white p-6 rounded-lg shadow-md">
+                    <h2 className="text-2xl font-semibold mb-2 text-[#304544]">{value.title}</h2>
+                    <p className="text-gray-700">{value.description}</p>
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
+const EmployeeBenefitsPage = () => (
+    <div className="p-6 md:p-10">
+        <h1 className="text-3xl font-bold mb-6 text-[#304544]">Employee Benefits</h1>
+        <div className="bg-white p-6 rounded-lg shadow-md">
+            <p className="text-gray-700">
+                Information about our comprehensive benefits package is available on our internal Notion page. This includes details on health, dental, vision, 401(k), and more. 
+                Enroll in Healthcare benefits using the email sent to your Treasury Prime email - or - register directly in <a href="https://www.employeenavigator.com/identity/Account/Login?ReturnUrl=%2Fidentity%2Fconnect%2Fauthorize%2Fcallback%3FauthzId%3DAC11C8388C9A1082B71DDF95CED6CFEE304E67B388AA0BD4648CA36F75455D34" target="_blank" rel="noopener noreferrer" className="text-[#6D988F] hover:underline">Employee Navigator</a>.
+            </p>
+            <a href="https://www.notion.so/treasuryprime/Benefits-242d9bda87f9810794d7c67c94cc538c" target="_blank" rel="noopener noreferrer" className="text-[#6D988F] hover:underline mt-4 inline-block">View Benefits on Notion</a>
+            <div className="border-t my-6"></div>
+            <h2 className="text-2xl font-semibold mb-4 text-[#304544]">Benefit Highlights</h2>
+            <ul className="space-y-4 text-gray-700 list-disc list-inside">
+                <li>
+                    Medical Insurance through <a href="https://ping-ext.blueshieldca.com/as/authorization.oauth2?response_type=code&client_id=member-experience-prod&redirect_uri=https%3A%2F%2Fwww.blueshieldca.com%2Fpa%2Foidc%2Fcb&state=eyJ6aXAiOiJERUYiLCJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2Iiwia2lkIjoiRUF5UE9JRGc0MjNFSlhnaWJSQVZrX2lmX1RvIiwic3VmZml4IjoiTUxDekNVLjE3NTU3MTkxMzcifQ..ZTmD1yUZ2Rh10UrY6Cs8Ng.ld56b9DENEDIJClqEYM95XMBK2_F8yFk7Wnlm7prSnBRD7NvWFozoW_fiRT6aQgbnRLLnwNRpxLUlC7dyMTLev3hKD-Of26FSn-V4G9zm-Cdpn3kPI-OHGM9T4k8uA79.i-qLx4LqxEbWMCESVOtkjw&nonce=Tf9MdbPstqiDtmbvzCnD2kY0ZlvNmSpizfMH0XzTFcU&acr_values=formMemberExperience%20formMemberSpoof%20formEPSSO%20formMobile%20formAccolade%20formCVT%20formEnspire%20formCALPERS&scope=openid&vnd_pi_requested_resource=https%3A%2F%2Fwww.blueshieldca.com%2Fmemberwebapp%2Fconnect&vnd_pi_application_name=Member+Experience+Authenticated+Master" target="_blank" rel="noopener noreferrer" className="text-[#6D988F] hover:underline">Blue Shield CA</a> (CA Residents also have the option of enrolling with <a href="https://identityauth.kaiserpermanente.org/as/authorization.oauth2?response_type=code&client_id=KPORGOauthClientPAWebSessionV1&redirect_uri=https%3A%2F%2Fhealthy.kaiserpermanente.org%2Fpa%2Foidc%2Fcb&state=eyJ6aXAiOiJERUYiLCJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2Iiwia2lkIjoiaG0iLCJzdWZmaXgiOiJ6cXZWWjYuMTc1NTcxOTIyMiJ9..w7A38WKkBFkjL6PeDsV1zA.h2yl-mYOyIUIBRWvyZl_sx_9YvO5Enh03K1Ys7T-Zk14IrzhWeTi7BgC2uVfOZv7QmW6IDMtCGIWXrR0nJ37fUX7gDxqEyocdkbCWnHHCwJW8isvC9BzL1V4e3LuOeVxLVYfBUX-WCVK42bDiHZBfw.excozbOv4mqAHPak8v6JSw&nonce=HlzstqOVWVNKayOv5vOfE-2wEiAv7dy0WAC45FrPgQ&scope=openid+openid&vnd_pi_requested_resource=https%3A%2F%2Fhealthy.kaiserpermanente.org%2Fsecure%2Finner-door&vnd_pi_application_name=KPORG_HEALTHY_AEMandPortal&bm=true" target="_blank" rel="noopener noreferrer" className="text-[#6D988F] hover:underline">Kaiser</a>). 100% of the employee premium and 95% of dependent premiums are covered by Treasury Prime.
+                </li>
+                <li>
+                    Dental Insurance through <a href="https://identity.metlife.com/public/login?TYPE=33554433&REALMOID=06-000b3a90-819d-1574-9569-51f30a310000&GUID=&SMAUTHREASON=0&METHOD=GET&SMAGENTNAME=-SM-jyFLQYm8YXWrM2ng%2bvRHC7xMZ8tp4b6hcDUFvyBZ5HFFIfvLuxOpZuWctsG6qfU2&TARGET=-SM-https%3a%2f%2faccess%2eonline%2emetlife%2ecom%2fauth%2fpost--auth" target="_blank" rel="noopener noreferrer" className="text-[#6D988F] hover:underline">MetLife</a>. There is a standard plan and buy up option. 100% of the employee premium and 95% of dependent premiums are covered by Treasury Prime. The employee is responsible for an additional amount for the buy up plan.
+                </li>
+                <li>
+                    Vision Insurance through <a href="https://identity.metlife.com/public/login?TYPE=33554433&REALMOID=06-000b3a90-819d-1574-9569-51f30a310000&GUID=&SMAUTHREASON=0&METHOD=GET&SMAGENTNAME=-SM-jyFLQYm8YXWrM2ng%2bvRHC7xMZ8tp4b6hcDUFvyBZ5HFFIfvLuxOpZuWctsG6qfU2&TARGET=-SM-https%3a%2f%2faccess%2eonline%2emetlife%2ecom%2fauth%2fpost--auth" target="_blank" rel="noopener noreferrer" className="text-[#6D988F] hover:underline">MetLife</a>. Employee is responsible for 100% of vision premiums for self and dependents.
+                </li>
+                <li>
+                    401k through <a href="https://wwws.betterment.com" target="_blank" rel="noopener noreferrer" className="text-[#6D988F] hover:underline">Betterment</a>. We have Traditional and Roth options. Please be sure to consider any contributions you made this plan year in your previous employer's plan to ensure you do not exceed annual contribution limits.
+                </li>
+                <li>
+                    Unlimited FTO. On average people take between 4-5 weeks of FTO per year. All requests must be submitted in <a href="https://treasuryprime.bamboohr.com/home" target="_blank" rel="noopener noreferrer" className="text-[#6D988F] hover:underline">Bamboo</a> and require manager approval.
+                </li>
+            </ul>
+        </div>
+    </div>
+);
+
+const ImportantResourcesPage = () => {
+    const [textToSummarize, setTextToSummarize] = useState('');
+    const [summary, setSummary] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [activeTab, setActiveTab] = useState('paste');
+    const [fileContent, setFileContent] = useState('');
+
+    const handleFileChange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setFileContent(e.target.result);
+            };
+            reader.readAsText(file);
+        }
+    };
+
+    const handleSummarize = async () => {
+        let content = '';
+        if (activeTab === 'paste') {
+            content = textToSummarize;
+        } else if (activeTab === 'upload') {
+            content = fileContent;
+        }
+
+        if (!content.trim()) {
+            setSummary("Please provide some text to summarize.");
+            return;
+        }
+        setIsLoading(true);
+        setSummary('');
+        const prompt = `Summarize the following text for a new employee in a few key bullet points:\n\n---\n${content}\n---`;
+        const response = await callGeminiAPI(prompt);
+        setSummary(response);
+        setIsLoading(false);
+    };
+
+    return (
+        <div className="p-6 md:p-10">
+            <h1 className="text-3xl font-bold mb-6 text-[#304544]">Important Resources</h1>
+            <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+                <h2 className="text-2xl font-semibold mb-4 text-[#304544]">Company Resources</h2>
+                <div className="space-y-4">
+                    <div>
+                        <a href="https://treasuryprime.bamboohr.com/home" target="_blank" rel="noopener noreferrer" className="text-[#6D988F] hover:underline">
+                            <h3 className="text-lg font-semibold text-gray-800">BambooHR</h3>
+                        </a>
+                        <p className="text-gray-600 mb-1">Our HRIS and Payroll System.</p>
+                    </div>
+                    <div className="border-t pt-4">
+                         <a href="https://docs.google.com/document/d/1ruwf8yGb7A_RlmstgQ3-E-GLfOvyqVGEfyV8TGOCZaA/edit?usp=drive_link" target="_blank" rel="noopener noreferrer" className="text-[#6D988F] hover:underline">
+                            <h3 className="text-lg font-semibold text-gray-800">Email Signature Guide</h3>
+                        </a>
+                        <p className="text-gray-600 mb-1">Follow this guide to set up your official Treasury Prime email signature.</p>
+                    </div>
+                    <div className="border-t pt-4">
+                        <h3 className="text-lg font-semibold text-gray-800">Employee Handbook</h3>
+                        <a href="https://drive.google.com/file/d/1IxE_w-QZDFPsaDajhJYAQ8aeqbYxn0KN/view" target="_blank" rel="noopener noreferrer" className="text-[#6D988F] hover:underline">Open Handbook</a>
+                    </div>
+                </div>
+            </div>
+            <div className="bg-white p-6 rounded-lg shadow-md">
+                <h2 className="text-2xl font-semibold mb-4 text-[#304544]">AI-Powered Summarizer ✨</h2>
+                <p className="text-gray-600 mb-4">Have a long document or email? Use the tool below and let Murphy give you a quick summary.</p>
+                
+                <div className="border-b border-gray-200">
+                    <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                        <button onClick={() => setActiveTab('paste')} className={`${activeTab === 'paste' ? 'border-[#6D988F] text-[#304544]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>Paste Text</button>
+                        <button onClick={() => setActiveTab('upload')} className={`${activeTab === 'upload' ? 'border-[#6D988F] text-[#304544]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}>Upload File</button>
+                        <button disabled className="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-400 cursor-not-allowed">From URL (coming soon)</button>
+                    </nav>
+                </div>
+
+                <div className="mt-4">
+                    {activeTab === 'paste' && <textarea className="w-full h-40 border rounded-md p-2" placeholder="Paste text here..." value={textToSummarize} onChange={(e) => setTextToSummarize(e.target.value)} />}
+                    {activeTab === 'upload' && <input type="file" accept=".txt" onChange={handleFileChange} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#E7F0EF] file:text-[#304544] hover:file:bg-[#d8e2e1]" />}
+                </div>
+
+                <button onClick={handleSummarize} disabled={isLoading} className="mt-4 bg-[#ADCCC5] text-[#304544] font-semibold py-2 px-4 rounded-md hover:bg-[#9abeb8] disabled:bg-gray-400">
+                    {isLoading ? 'Summarizing...' : 'Summarize'}
+                </button>
+                {summary && (
+                    <div className="mt-6">
+                        <h3 className="text-xl font-semibold mb-2">Summary:</h3>
+                        <div className="bg-gray-100 p-4 rounded-md whitespace-pre-wrap">{summary}</div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const ScavengerHuntPage = () => (
+    <div className="p-6 md:p-10">
+        <h1 className="text-3xl font-bold mb-6 text-[#304544]">New Hire Scavenger Hunt 🗺️</h1>
+        <div className="bg-white p-6 rounded-lg shadow-md">
+            <p className="text-gray-700">Get to know Treasury Prime by completing our new hire scavenger hunt! This is a fun way to learn about our tools, teams, and culture.</p>
+            <a href="https://www.notion.so/treasuryprime/Treasury-Prime-Onboarding-Scavenger-Hunt-253d9bda87f9807db433c8f40a8ae5eb?source=copy_link" target="_blank" rel="noopener noreferrer" className="text-[#6D988F] hover:underline mt-4 inline-block">Start the Scavenger Hunt on Notion</a>
+            <p className="text-sm text-gray-500 mt-2">(You will need to be logged into your Treasury Prime Google account to access this page.)</p>
+        </div>
+    </div>
+);
+
+const ThirtySixtyNinetyPage = ({ plan }) => (
+    <div className="p-6 md:p-10">
+        <h1 className="text-3xl font-bold mb-6 text-[#304544]">30/60/90 Day Plan</h1>
+        <div className="bg-white p-6 rounded-lg shadow-md space-y-6">
+            <div>
+                <h2 className="text-2xl font-semibold mb-2 text-[#304544]">First 30 Days: Onboarding & Learning</h2>
+                <p className="text-gray-700">{plan.thirtyDays}</p>
+            </div>
+            <div className="border-t pt-6">
+                <h2 className="text-2xl font-semibold mb-2 text-[#304544]">Days 31-60: Project Ownership & Contribution</h2>
+                <p className="text-gray-700">{plan.sixtyDays}</p>
+            </div>
+            <div className="border-t pt-6">
+                <h2 className="text-2xl font-semibold mb-2 text-[#304544]">Days 61-90: Driving Results & Leadership</h2>
+                <p className="text-gray-700">{plan.ninetyDays}</p>
+            </div>
+        </div>
+    </div>
+);
+
+const Chatbot = ({ isOpen, onClose, setActivePage }) => {
+    const [messages, setMessages] = useState([
+        { sender: 'bot', text: "Hi there! I'm Murphy, your onboarding buddy. Ask me anything about your first day, the team, benefits, and more!" }
+    ]);
+    const [input, setInput] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [isListening, setIsListening] = useState(false);
+    const [isMuted, setIsMuted] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
+    const recognitionRef = useRef(null);
+    const messagesEndRef = useRef(null);
+
+    const playAudio = async (text) => {
+        if (isMuted) return;
+        
+        const ttsResponse = await callGeminiTTSAPI(text);
+        if (ttsResponse) {
+            const { audioData, mimeType } = ttsResponse;
+            const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+            const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 24000;
+            const pcmData = base64ToArrayBuffer(audioData);
+            const pcm16 = new Int16Array(pcmData);
+            const wavBlob = pcmToWav(pcm16, sampleRate);
+            const audioUrl = URL.createObjectURL(wavBlob);
+            const audio = new Audio(audioUrl);
+            audio.play();
+        }
+    };
+    
+    // Setup Speech Recognition
+    useEffect(() => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => setIsListening(true);
+            recognition.onend = () => setIsListening(false);
+            recognition.onerror = (event) => {
+                console.error("Speech recognition error:", event.error);
+                setIsListening(false);
+            };
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                setInput(transcript);
+            };
+            recognitionRef.current = recognition;
+        }
+    }, []);
+
+    const toggleListening = () => {
+        if (!recognitionRef.current) {
+            alert("Sorry, your browser doesn't support voice commands.");
+            return;
+        }
+        if (isListening) {
+            recognitionRef.current.stop();
+        } else {
+            recognitionRef.current.start();
+        }
+    };
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+
+    useEffect(scrollToBottom, [messages]);
+
+    const handleSend = async () => {
+        if (input.trim() === '' || isLoading) return;
+
+        const newMessages = [...messages, { sender: 'user', text: input }];
+        setMessages(newMessages);
+        setInput('');
+        setIsLoading(true);
+
+        const prompt = `You are Murphy, a friendly and helpful AI onboarding buddy for a new hire at Treasury Prime. The user's question is: "${input}". 
+        Based on their question, your primary goal is to guide them to the correct section of the onboarding app. The available sections are: "First Day", "Meet the Team", "IT Setup", "Culture and Values", "Employee Benefits", "Important Resources", "Scavenger Hunt", and "30/60/90 Day Plan".
+        First, determine the user's intent. Then, respond conversationally. If you identify a clear section they should see, include the special token [[NAVIGATE_TO:Section Name]] in your response. For example, if they ask about their schedule, you could say "I can help with that! Here is your first day schedule. [[NAVIGATE_TO:First Day]]".
+        If the question is general (like "hello" or "thank you"), just provide a friendly response without the navigate token. If you cannot determine the correct section, provide a helpful "I'm not sure" response and suggest topics they can ask about.
+        
+        Example 1:
+        User: "who is on my team?"
+        Your response: "Let's meet your new colleagues! I'll take you to the team page. [[NAVIGATE_TO:Meet the Team]]"
+
+        Example 2:
+        User: "where's the scavenger hunt?"
+        Your response: "Time for an adventure! Let's get you to the Scavenger Hunt page. [[NAVIGATE_TO:Scavenger Hunt]]"
+        
+        Example 3:
+        User: "thanks!"
+        Your response: "You're welcome! Let me know if anything else comes up."
+        `;
+
+        const botResponse = await callGeminiAPI(prompt);
+
+        const navRegex = /\[\[NAVIGATE_TO:(.*?)\]\]/;
+        const match = botResponse.match(navRegex);
+        
+        let cleanResponse = botResponse.replace(navRegex, '').trim();
+        if (cleanResponse === '') { // Fallback if response is only the token
+            cleanResponse = "Here you go!";
+        }
+        
+        const ttsResponse = await callGeminiTTSAPI(cleanResponse);
+        
+        if (match && match[1]) {
+            const page = match[1].trim();
+            setActivePage(page);
+        }
+        
+        setMessages(prev => [...prev, { sender: 'bot', text: cleanResponse }]);
+        
+        if (ttsResponse && !isMuted) {
+            const { audioData, mimeType } = ttsResponse;
+            const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+            const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 24000;
+            const pcmData = base64ToArrayBuffer(audioData);
+            const pcm16 = new Int16Array(pcmData);
+            const wavBlob = pcmToWav(pcm16, sampleRate);
+            const audioUrl = URL.createObjectURL(wavBlob);
+            const audio = new Audio(audioUrl);
+            audio.play();
+        }
+
+        setIsLoading(false);
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className={`fixed bottom-0 left-0 md:left-64 right-0 bg-white shadow-2xl flex flex-col z-50 border-t-2 border-gray-200 transition-all duration-300 ${isExpanded ? 'h-[50vh]' : 'h-auto'}`}>
+            <div className="bg-[#ADCCC5] text-[#304544] p-2 flex justify-between items-center">
+                <h3 className="font-semibold pl-2">Murphy</h3>
+                <div className="flex items-center">
+                    <button onClick={() => setIsExpanded(!isExpanded)} className="text-sm font-semibold p-1 hover:bg-[#9abeb8] rounded-md mr-2">
+                        {isExpanded ? 'Hide Text' : 'See Text'}
+                    </button>
+                    <button onClick={() => setIsMuted(!isMuted)} className="text-[#304544] hover:text-black mr-2 p-1">
+                        {isMuted ? 
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clipRule="evenodd" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg> : 
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
+                        }
+                    </button>
+                    <button onClick={onClose} className="text-[#304544] hover:text-black text-2xl leading-none pr-2">&times;</button>
+                </div>
+            </div>
+            {isExpanded && (
+                <div className="flex-1 p-4 overflow-y-auto bg-[#E7F0EF]">
+                    {[...messages].reverse().map((msg, index) => (
+                        <div key={index} className={`mb-3 flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <span className={`inline-block p-2 rounded-lg max-w-xs ${msg.sender === 'user' ? 'bg-[#6D988F] text-white' : 'bg-white text-gray-800'}`}>
+                                {msg.text}
+                            </span>
+                        </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                </div>
+            )}
+            <div className="p-2 border-t flex items-center bg-white">
+                <input
+                    type="text"
+                    className="flex-1 border rounded-md p-2"
+                    placeholder={isLoading ? "Priming..." : isListening ? "Listening..." : "Ask a question..."}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                    disabled={isLoading}
+                />
+                <button onClick={toggleListening} className={`p-2 rounded-md ml-2 ${isListening ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                </button>
+                <button onClick={handleSend} disabled={isLoading} className="bg-[#ADCCC5] text-[#304544] font-semibold p-2 rounded-md ml-2 disabled:bg-gray-400">Send</button>
+            </div>
+        </div>
+    );
+};
+
+const ChatbotToggle = ({ onClick }) => (
+    <button onClick={onClick} className="fixed bottom-5 right-5 bg-[#ADCCC5] text-[#304544] w-14 h-14 rounded-full shadow-lg flex items-center justify-center z-50 hover:bg-[#9abeb8] transition-transform hover:scale-110">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+    </button>
+);
+
+
+export default function App() {
+  const [activePage, setActivePage] = useState("Welcome");
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const renderPage = () => {
+    switch (activePage) {
+      case "First Day":
+        return <FirstDayPage data={newHireData.firstDay} />;
+      case "Meet the Team":
+        return <MeetTheTeamPage team={newHireData.team} />;
+      case "IT Setup":
+        return <ITSetupPage steps={itSetupSteps} />;
+      case "Culture and Values":
+        return <CultureValuesPage values={cultureAndValues} />;
+      case "Employee Benefits":
+        return <EmployeeBenefitsPage />;
+      case "Important Resources":
+        return <ImportantResourcesPage />;
+      case "Scavenger Hunt":
+        return <ScavengerHuntPage />;
+      case "30/60/90 Day Plan":
+        return <ThirtySixtyNinetyPage plan={thirtySixtyNinetyDayPlan} />;
+      default:
+        return <WelcomePage />;
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-[#F0E8E2] font-sans">
+      <Sidebar activePage={activePage} setActivePage={setActivePage} isMenuOpen={isMenuOpen} setIsMenuOpen={setIsMenuOpen} />
+      <div className="flex-1 flex flex-col">
+        <Header onMenuClick={() => setIsMenuOpen(true)} />
+        <main className="flex-1 overflow-y-auto pb-28">
+          {renderPage()}
+        </main>
+      </div>
+      {!isChatOpen && <ChatbotToggle onClick={() => setIsChatOpen(true)} />}
+      {isChatOpen && <Chatbot isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} setActivePage={setActivePage} />}
+    </div>
+  );
+}
